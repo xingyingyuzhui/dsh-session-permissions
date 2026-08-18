@@ -98,6 +98,15 @@ test('checklist: approval is per call and pin cannot widen', () => {
   assert.equal(tighterSandbox('danger-full-access', 'read-only'), 'read-only')
 })
 
+test('checklist: MCP allow list is enforced and not tied to write/shell', () => {
+  const research = applyPreset('research')
+  assert.equal(allowExecution(research, 'mcp__github__search', {}, '/tmp'), true)
+  assert.equal(allowExecution({ ...research, mcp: 'none' }, 'mcp__github__search', {}, '/tmp'), false)
+  const explicit = { ...applyPreset('developer'), mcp: 'explicit', servers: { allow: ['github'], deny: [] } }
+  assert.equal(allowExecution(explicit, 'mcp__github__search', {}, '/tmp'), true)
+  assert.equal(allowExecution(explicit, 'mcp__slack__post', {}, '/tmp'), false)
+})
+
 test('checklist: missing claw preset falls back instead of breaking resume', () => {
   const live = new Set(['standard', 'wa-test1'])
   assert.equal(fallbackMissingPreset('wa-2e263a19-08cd-4274-b2af-42286f96b517', live), 'standard')

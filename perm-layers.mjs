@@ -184,6 +184,9 @@ export function denyReason(home, exec) {
   const policy = layers.effective
   let extra = ''
   if (cls === 'bash' && policy && policy.shell === 'deny') extra = 'Terminal is off for this session.'
+  else if (cls === 'mcp') extra = policy && policy.mcp === 'none'
+    ? 'MCP is off for this session.'
+    : 'This MCP server is not on the session allow list.'
   else if (policy && policy.files && (policy.files.read !== 'all' || policy.files.write !== 'all')) {
     extra = 'Paths outside this workspace (Desktop, home, other agents) are out of scope.'
   }

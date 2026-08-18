@@ -121,7 +121,7 @@ export function allowExecution(policy, name, args, cwd) {
   if (!allowTool(policy, name, args)) return false
   const cls = classifyTool(name, args)
   if (cls === 'bash') return bashAllowed(policy, asArgs(args).command, cwd)
-  if (cls === 'deploy' || cls === 'other') return true
+  if (cls === 'deploy' || cls === 'mcp' || cls === 'other') return true
   const access = workspaceAccessOf(policy, cls)
   if (access === 'none') return false
   if (cls !== 'read' && access === 'ro') return false

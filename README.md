@@ -5,11 +5,11 @@
 有效权限按更严的一面取交集：
 
 - 工作区会话：默认最大权限（danger-full-access，文件面为全部）；本会话仍可收紧
-- Claw 会话：官方预设 ∩ Claw 硬顶（developer，文件面最高工作区）∩ Agent 策略 ∩ 本会话覆盖
+- Claw 会话：官方预设 ∩ Claw 硬顶 ∩ Agent 策略 ∩ 本会话覆盖
 
 工具名按 OpenClaw：`read` / `write` / `edit` / `apply_patch` / `exec`（DSH 的 `bash` 是别名）。文件边界按 `workspaceAccess`：`none` | `ro` | `rw` | `all`，路径用 OpenClaw 的 `isPathInside`。`str_replace_editor` 是 DSH 合体工具，按 `command` 映射到 read/write/edit。bash 整类仍按 Shell 面拦截，不拆命令里的路径（与 OpenClaw 相同：allow `exec` 后不再假装只读）。
 
-Claw 区的 Agent 和会话都到不了官方最高权限 `danger-full-access`（无限制终端、不询问）。最高只到 `developer` / `workspace-write`。发布工具可以按需打开。工作区会话不受这层硬顶限制。
+Claw 区的 Agent 和会话都到不了官方最高权限 `danger-full-access`（无限制终端、不询问）。文件读/写可以到 `all`，Shell 最高到 `allowlist`，发布工具可以按需打开。工作区会话不受这层硬顶限制。
 
 没有单独保存时，本会话继承天花板，不会再假装成 research 只读。保存时会按天花板收紧；超限选项在 UI 里不可选。
 

@@ -132,6 +132,17 @@ export function createPermissionPage(React, t, post, toast, subscribeLocale) {
           explicit: t('mcpExplicit'),
           'init-defaults': t('mcpInit'),
         }), (id) => setClamped({ ...policy, mcp: id }))),
+        policy.mcp === 'explicit' ? field(t('mcpAllow'), el('input', {
+          className: 'dsp-num',
+          value: ((policy.servers && policy.servers.allow) || []).join(', '),
+          placeholder: t('mcpAllowHint'),
+          onChange(e) {
+            setClamped({
+              ...policy,
+              servers: { ...(policy.servers || { deny: [] }), allow: String(e.target.value || '').split(/[,;\s]+/).map((item) => item.trim()).filter(Boolean) },
+            })
+          },
+        }), true) : null,
         field(t('delegation'), el('input', {
           className: 'dsp-num',
           type: 'number',
