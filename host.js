@@ -8,7 +8,7 @@ import {
   resolveLayersSync,
   sessionFacts,
 } from './perm-layers.mjs'
-import { renderPolicyPrompt } from './perm-official.mjs'
+import { pinLiveSession, renderPolicyPrompt } from './perm-official.mjs'
 
 export const name = 'dsh-session-permissions'
 export const inject = ['webServer', 'systemPrompt']
@@ -93,6 +93,52 @@ function cwdOf(agent) {
   return header && header.cwd ? String(header.cwd) : ''
 }
 
+function optionalService(ctx, key) {
+  if (ctx && typeof ctx.get === 'function') {
+    try {
+      const got = ctx.get(key)
+      if (got != null) return got
+    } catch { /* not injected */ }
+  }
+  if (ctx && Object.prototype.hasOwnProperty.call(ctx, key)) return ctx[key]
+  return undefined
+}
+
+function liveSession(ctx, sessionId) {
+  const sessions = optionalService(ctx, 'sessions')
+  if (!sessions || typeof sessions.get !== 'function' || !sessionId) return null
+  try {
+    return sessions.get(sessionId) || null
+  } catch {
+    return null
+  }
+}
+
+function layersOfSession(session) {
+  if (!session || !session.id) return null
+  const header = session.header || {}
+  return resolveLayersSync(dshHome, {
+    sessionId: session.id,
+    cwd: header.cwd,
+    preset: header.agentPreset,
+    events: session.events,
+  })
+}
+
+function pinSession(session) {
+  return pinLiveSession(session, layersOfSession(session))
+}
+
+function pinOpenSessions(ctx) {
+  const agents = optionalService(ctx, 'agents')
+  if (!agents || typeof agents.values !== 'function') return
+  try {
+    for (const agent of agents.values()) {
+      try { pinSession(agent && agent.session) } catch { /* one session must not block others */ }
+    }
+  } catch { /* agents bag unavailable */ }
+}
+
 export function apply(ctx) {
   const stopPrompt = ctx.systemPrompt && typeof ctx.systemPrompt.section === 'function'
     ? ctx.systemPrompt.section({
@@ -114,6 +160,14 @@ export function apply(ctx) {
       },
     })
     : function () {}
+
+  const stopStart = typeof ctx.on === 'function'
+    ? ctx.on('agent/session-start', (payload) => {
+      pinSession(payload && payload.agent && payload.agent.session)
+    })
+    : function () {}
+
+  try { pinOpenSessions(ctx) } catch { /* resume walk is best-effort */ }
 
   const handle = (fn) => async (req, res) => {
     if (!guard(req, res)) return
@@ -156,6 +210,7 @@ export function apply(ctx) {
           claw: isClawContext(facts, agent),
         })
         const record = await savePolicy(dshHome, sessionId, composed.session)
+        pinSession(liveSession(ctx, sessionId))
         writeJson(res, 200, payload({ ...composed, record }))
       }),
     }),
@@ -169,6 +224,7 @@ export function apply(ctx) {
           return
         }
         await resetPolicy(dshHome, sessionId)
+        pinSession(liveSession(ctx, sessionId))
         writeJson(res, 200, payload(resolveFor(ctx, sessionId, body)))
       }),
     }),
@@ -176,6 +232,7 @@ export function apply(ctx) {
 
   ctx.effect(() => () => {
     if (typeof stopPrompt === 'function') stopPrompt()
+    if (typeof stopStart === 'function') stopStart()
     for (const dispose of routes) {
       if (typeof dispose === 'function') dispose()
     }

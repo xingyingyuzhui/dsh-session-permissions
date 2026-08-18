@@ -337,9 +337,11 @@ test('host named exports and routes', () => {
   assert.equal(name, 'dsh-session-permissions')
   assert.deepEqual(inject, ['webServer', 'systemPrompt'])
   const routes = []
+  const events = []
   apply({
     webServer: { register(entry) { routes.push(entry); return () => {} } },
     systemPrompt: { section() { return () => {} } },
+    on(name, fn) { events.push(name); return () => {} },
     effect() {},
   })
   assert.deepEqual(routes.map((row) => row.path), [
@@ -347,5 +349,56 @@ test('host named exports and routes', () => {
     '/dsh-session-permissions/write',
     '/dsh-session-permissions/reset',
   ])
+  assert.deepEqual(events, ['agent/session-start'])
   _internal.setDshHome(tmpdir())
+})
+
+test('permissions pins a Claw session and never widens a tighter sandbox', async () => {
+  const home = await mkdtemp(join(tmpdir(), 'dsp-pin-'))
+  _internal.setDshHome(home)
+  await mkdir(join(home, 'workspace-agents'), { recursive: true })
+  await mkdir(join(home, 'DSclaw', 'test1'), { recursive: true })
+  await writeFile(join(home, 'workspace-agents', 'registry.json'), JSON.stringify({
+    version: 1,
+    main: { agentId: 'main' },
+    agents: {
+      wa_1: {
+        agentId: 'wa_1',
+        title: 'test1',
+        slug: 'test1',
+        status: 'active',
+        canonicalRoot: join(home, 'DSclaw', 'test1'),
+        preset: 'research',
+      },
+    },
+  }))
+  const appended = []
+  const session = {
+    id: 'session-aaaa',
+    header: { cwd: join(home, 'DSclaw', 'test1'), agentPreset: 'standard' },
+    events: [{ type: 'sandbox/mode', data: { mode: 'danger-full-access' } }],
+    append(type, data) { appended.push({ type, data }); this.events.push({ type, data }) },
+  }
+  const events = {}
+  apply({
+    webServer: { register() { return () => {} } },
+    systemPrompt: { section() { return () => {} } },
+    on(name, fn) { events[name] = fn; return () => {} },
+    effect() {},
+  })
+  events['agent/session-start']({ agent: { session } })
+  assert.ok(appended.some((row) => row.type === 'sandbox/mode' && row.data.mode === 'read-only'))
+  const after = appended.length
+  events['agent/session-start']({ agent: { session } })
+  assert.equal(appended.length, after)
+
+  const wide = []
+  const project = {
+    id: 'session-bbbb',
+    header: { cwd: '/tmp/project', agentPreset: 'standard' },
+    events: [],
+    append(type, data) { wide.push({ type, data }) },
+  }
+  events['agent/session-start']({ agent: { session: project } })
+  assert.equal(wide.length, 0)
 })

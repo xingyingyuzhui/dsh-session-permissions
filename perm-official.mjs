@@ -32,6 +32,11 @@ export function applyOfficialPin(session, layers) {
   return plan
 }
 
+export function pinLiveSession(session, layers) {
+  if (!layers || !layers.claw) return officialPin(layers, session && session.events || [])
+  return applyOfficialPin(session, layers)
+}
+
 export function renderPolicyPrompt(policy) {
   if (!policy || !policy.files) return ''
   const read = policy.files.read
