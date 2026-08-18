@@ -173,7 +173,7 @@ export function denyReason(home, exec) {
   })
   if (String(exec.name || '').toLowerCase() === 'memory') return undefined
   if (String(exec.name || '').toLowerCase() === 'skill') {
-    const denied = ((layers.agent && layers.agent.policy && layers.agent.policy.skills && layers.agent.policy.skills.deny) || [])
+    const denied = ((layers.effective && layers.effective.skills && layers.effective.skills.deny) || [])
     const skillName = asArgs(exec.arguments).name
     if (skillName && denied.indexOf(skillName) >= 0) {
       return renderDenyReceipt('skill', 'That skill is not allowed for this agent.')

@@ -106,6 +106,9 @@ function normalizePolicy(raw, fallbackPreset) {
   const serversIn = value.servers && typeof value.servers === 'object' ? value.servers : {}
   const depth = Number(delegationIn.maxDepth)
   const roles = asStringList(delegationIn.roles)
+  const maxChildren = Number(delegationIn.maxChildren)
+  const maxOutputBytes = Number(delegationIn.maxOutputBytes)
+  const sandboxIn = value.sandbox && typeof value.sandbox === 'object' ? value.sandbox : {}
   return {
     preset,
     enforced: false,
@@ -120,8 +123,11 @@ function normalizePolicy(raw, fallbackPreset) {
     },
     delegation: {
       maxDepth: Number.isFinite(depth) && depth >= 0 ? Math.min(8, Math.floor(depth)) : base.delegation.maxDepth,
-      roles: roles.length ? roles : (base.delegation.roles || []).slice(),
+      roles: Array.isArray(delegationIn.roles) ? roles : (base.delegation.roles || []).slice(),
+      maxChildren: Number.isFinite(maxChildren) && maxChildren >= 0 ? Math.min(32, Math.floor(maxChildren)) : undefined,
+      maxOutputBytes: Number.isFinite(maxOutputBytes) && maxOutputBytes >= 256 ? Math.min(1024 * 1024, Math.floor(maxOutputBytes)) : undefined,
     },
+    sandbox: sandboxIn.requireEnforcement === 'full' ? { requireEnforcement: 'full' } : undefined,
     approval: pick(APPROVAL_IDS, value.approval, base.approval),
     mcp: pick(MCP_IDS, value.mcp, base.mcp),
     servers: {
@@ -177,6 +183,17 @@ function tighter(rank, left, right) {
   return a <= b ? left : right
 }
 
+function tighterCap(left, right) {
+  const a = Number(left)
+  const b = Number(right)
+  const leftOk = Number.isFinite(a)
+  const rightOk = Number.isFinite(b)
+  if (leftOk && rightOk) return Math.min(a, b)
+  if (leftOk) return a
+  if (rightOk) return b
+  return undefined
+}
+
 function intersectPolicies(...layers) {
   const list = layers.filter(Boolean).map((row) => normalizePolicy(row))
   if (list.length === 0) return normalizePolicy({ preset: INIT_PRESET })
@@ -200,7 +217,12 @@ function intersectPolicies(...layers) {
       delegation: {
         maxDepth: Math.min(acc.delegation.maxDepth, row.delegation.maxDepth),
         roles: (acc.delegation.roles || []).filter((role) => (row.delegation.roles || []).includes(role)),
+        maxChildren: tighterCap(acc.delegation.maxChildren, row.delegation.maxChildren),
+        maxOutputBytes: tighterCap(acc.delegation.maxOutputBytes, row.delegation.maxOutputBytes),
       },
+      sandbox: (acc.sandbox && acc.sandbox.requireEnforcement === 'full') || (row.sandbox && row.sandbox.requireEnforcement === 'full')
+        ? { requireEnforcement: 'full' }
+        : undefined,
       skills: {
         deny: [...new Set([
           ...((acc.skills && acc.skills.deny) || []),
@@ -236,7 +258,6 @@ function clampPolicy(policy, ceiling) {
 function sealReadOnlyRuntime(policy) {
   const next = normalizePolicy(policy)
   if (!next.files || next.files.write !== 'none') return next
-  if (next.files.read === 'all') return next
   const allow = (next.tools.allow || []).filter((id) => id !== 'bash')
   const deny = (next.tools.deny || []).slice()
   if (deny.indexOf('bash') < 0) deny.push('bash')
@@ -413,13 +434,11 @@ function allowTool(policy, name, args) {
     if (!server) return false
     return mcpServerAllowed(policy, server)
   }
-  if ((id.includes('subagent') || id.includes('delegate')) && policy.delegation.maxDepth <= 0) {
-    return false
+  if (id.includes('subagent') || id.includes('delegate')) {
+    return (policy.delegation && policy.delegation.maxDepth || 0) > 0
   }
   const cls = classifyTool(name, args)
-  if (cls === 'other') {
-    return policy.files.write !== 'none' || policy.shell !== 'deny'
-  }
+  if (cls === 'other') return false
   if (cls === 'edit' || cls === 'write' || cls === 'apply_patch') {
     if (cls === 'apply_patch') return isToolEnabled(policy, 'apply_patch') || isToolEnabled(policy, 'edit')
     return isToolEnabled(policy, cls)

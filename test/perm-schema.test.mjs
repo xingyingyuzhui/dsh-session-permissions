@@ -298,6 +298,41 @@ test('denied skills are refused by name', async () => {
   assert.equal(denyReason(dir, { ...exec, arguments: { name: 'docx' } }), undefined)
 })
 
+test('session-level skill deny is enforced even when the agent allows it', async () => {
+  const dir = await mkdtemp(join(tmpdir(), 'dsp-skill-sess-'))
+  await writeFile(join(dir, 'settings.yaml'), 'permission:\n  defaultPreset: danger-full-access\n')
+  await mkdir(join(dir, 'workspace-agents'), { recursive: true })
+  await mkdir(join(dir, 'session-permissions'), { recursive: true })
+  await mkdir(join(dir, 'DSclaw', 'test1'), { recursive: true })
+  await writeFile(join(dir, 'workspace-agents', 'registry.json'), JSON.stringify({
+    version: 1,
+    agents: {
+      wa_1: {
+        agentId: 'wa_1',
+        title: 'test1',
+        preset: 'developer',
+        dshPreset: 'wa-test1',
+        canonicalRoot: join(dir, 'DSclaw', 'test1'),
+        status: 'active',
+        policy: { preset: 'developer', skills: { deny: [] } },
+      },
+    },
+  }))
+  const sessionId = 'session-cccccccc-dddd-eeee-ffff-111111111111'
+  await writeFile(join(dir, 'session-permissions', sessionId + '.json'), JSON.stringify({
+    version: 1,
+    sessionId,
+    source: 'session',
+    policy: { preset: 'developer', skills: { deny: ['pdf'] } },
+  }))
+  const exec = {
+    name: 'skill',
+    arguments: { name: 'pdf' },
+    agent: { session: { id: sessionId, header: { cwd: join(dir, 'DSclaw', 'test1') }, events: [] } },
+  }
+  assert.match(denyReason(dir, exec), /skill/)
+})
+
 test('host named exports and routes', () => {
   assert.equal(name, 'dsh-session-permissions')
   assert.deepEqual(inject, ['webServer', 'systemPrompt'])
