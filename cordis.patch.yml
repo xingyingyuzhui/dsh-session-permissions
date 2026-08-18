@@ -1,0 +1,4 @@
+# dsh bundle layer: layered session permissions + first-knife tool gate.
+- insert:
+    - id: dsh-session-permissions
+      name: dsh-session-permissions

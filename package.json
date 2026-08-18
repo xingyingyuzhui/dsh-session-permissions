@@ -1,0 +1,40 @@
+{
+  "name": "dsh-session-permissions",
+  "version": "0.2.21",
+  "description": "Layered session permissions for DeepSeek Harness. 有效权限 = 官方 ∩ Agent ∩ 本会话，会话不能超过天花板，并按有效权限拦截工具。",
+  "keywords": ["dsh", "dsh-plugin", "deepseek-harness", "session", "permissions"],
+  "license": "MIT",
+  "type": "module",
+  "main": "./host.js",
+  "exports": {
+    ".": "./host.js",
+    "./client": "./client.js",
+    "./package.json": "./package.json"
+  },
+  "files": [
+    "host.js",
+    "client.js",
+    "perm-schema.mjs",
+    "perm-store.mjs",
+    "perm-layers.mjs",
+    "perm-path.mjs",
+    "perm-official.mjs",
+    "perm-i18n.mjs",
+    "perm-styles.mjs",
+    "perm-page.mjs",
+    "perm-runtime.mjs",
+    "cordis.patch.yml",
+    "README.md",
+    "LICENSE"
+  ],
+  "engines": { "node": ">=20" },
+  "scripts": {
+    "build": "node scripts/build-client.mjs",
+    "build:check": "node scripts/build-client.mjs --check",
+    "test": "npm run build:check && node --test test/*.test.mjs"
+  },
+  "dsh": {
+    "bundle": { "patch": "./cordis.patch.yml" },
+    "client": { "platform": "web" }
+  }
+}
