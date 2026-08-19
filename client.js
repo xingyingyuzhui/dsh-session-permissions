@@ -490,7 +490,8 @@ const COPY = {
     official: '官方预设',
     ceiling: '天花板',
     effective: '有效权限',
-    sourceInherit: '尚未单独保存：工作区默认最大，Claw 继承其天花板',
+    workspaceOnly: '本会话只走官方权限。请在设置 → Agent 里改官方预设。',
+    sourceInherit: '尚未单独保存：继承 Claw 天花板',
     sourceSession: '已保存为本会话覆盖（已按天花板收紧）',
     clamped: '已按天花板收紧，超限选项不可选。Claw 不能选无限制终端或官方最高权限。',
     template: '预设基类',
@@ -559,7 +560,8 @@ const COPY = {
     official: 'Official preset',
     ceiling: 'Ceiling',
     effective: 'Effective',
-    sourceInherit: 'Not saved yet: workspace defaults to maximum; Claw inherits its ceiling',
+    workspaceOnly: 'This session uses official DSH permissions. Change the official preset in Settings → Agent.',
+    sourceInherit: 'Not saved yet: inherits the Claw ceiling',
     sourceSession: 'Saved as a session override (clamped to the ceiling)',
     clamped: 'Clamped to the ceiling. Claw cannot choose unrestricted shell, deploy, or danger-full-access.',
     template: 'Preset template',
@@ -719,7 +721,7 @@ function createPermissionPage(React, t, post, toast, subscribeLocale) {
 
     const applyLayers = React.useCallback((data) => {
       setCeiling(data.ceiling || null)
-      setClaw(!!data.claw || !!(data.agent && data.agent.agentId))
+      setClaw(!!data.claw)
       const next = data.session || data.effective
       setPolicy(next ? normalizePolicy(next) : null)
     }, [])
@@ -782,6 +784,12 @@ function createPermissionPage(React, t, post, toast, subscribeLocale) {
 
     if (!policy) {
       return el('div', { className: 'dsp-page' })
+    }
+
+    if (!claw) {
+      return el('div', { className: 'dsp-page' },
+        el('p', null, t('workspaceOnly')),
+      )
     }
 
     return el('div', { className: 'dsp-page' },

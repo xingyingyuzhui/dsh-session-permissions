@@ -79,7 +79,7 @@ function payload(layers) {
     effective: layers.effective,
     inherited: layers.inherited,
     claw: !!layers.claw,
-    enforced: true,
+    enforced: !!layers.claw,
   }
 }
 
@@ -156,7 +156,8 @@ export function apply(ctx) {
           preset: header && header.agentPreset,
           events: session && session.events,
         })
-        return renderPolicyPrompt(layers && layers.effective)
+        if (!layers || !layers.claw) return ''
+        return renderPolicyPrompt(layers.effective)
       },
     })
     : function () {}
@@ -203,11 +204,15 @@ export function apply(ctx) {
         }
         const facts = sessionFacts(ctx, sessionId, body)
         const agent = loadAgentHintSync(dshHome, facts)
+        if (!isClawContext(facts, agent)) {
+          writeJson(res, 200, payload(resolveFor(ctx, sessionId, body)))
+          return
+        }
         const composed = composeLayers({
           officialName: readOfficialName(dshHome, facts.events),
           agent,
           sessionRecord: { source: 'session', policy: body && body.policy },
-          claw: isClawContext(facts, agent),
+          claw: true,
         })
         const record = await savePolicy(dshHome, sessionId, composed.session)
         pinSession(liveSession(ctx, sessionId))

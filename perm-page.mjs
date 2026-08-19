@@ -37,7 +37,7 @@ export function createPermissionPage(React, t, post, toast, subscribeLocale) {
 
     const applyLayers = React.useCallback((data) => {
       setCeiling(data.ceiling || null)
-      setClaw(!!data.claw || !!(data.agent && data.agent.agentId))
+      setClaw(!!data.claw)
       const next = data.session || data.effective
       setPolicy(next ? normalizePolicy(next) : null)
     }, [])
@@ -100,6 +100,12 @@ export function createPermissionPage(React, t, post, toast, subscribeLocale) {
 
     if (!policy) {
       return el('div', { className: 'dsp-page' })
+    }
+
+    if (!claw) {
+      return el('div', { className: 'dsp-page' },
+        el('p', null, t('workspaceOnly')),
+      )
     }
 
     return el('div', { className: 'dsp-page' },

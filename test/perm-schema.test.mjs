@@ -26,6 +26,7 @@ import { loadPolicy, resetPolicy, savePolicy } from '../perm-store.mjs'
 import {
   composeLayers,
   denyReason,
+  isClawContext,
   officialNameFromEvents,
   officialNameFromYaml,
   resolveLayersSync,
@@ -85,6 +86,7 @@ test('unsaved session inherits the ceiling instead of fake research', () => {
   assert.equal(inherited.effective.shell, 'allow')
   const claw = composeLayers({
     officialName: 'danger-full-access',
+    claw: true,
     agent: { agentId: 'wa_1', title: 'test1', preset: 'research', policy: applyPreset('research') },
     sessionRecord: { source: 'inherit', policy: null },
   })
@@ -93,6 +95,7 @@ test('unsaved session inherits the ceiling instead of fake research', () => {
   assert.equal(claw.session.files.write, 'none')
   const override = composeLayers({
     officialName: 'danger-full-access',
+    claw: true,
     agent: { agentId: 'wa_1', title: 'test1', preset: 'research', policy: applyPreset('research') },
     sessionRecord: { source: 'session', policy: applyPreset('developer') },
   })
@@ -143,6 +146,8 @@ test('claw agents and sessions cannot reach danger-full-access', () => {
     agent: null,
     sessionRecord: { source: 'inherit', policy: null },
   })
+  assert.equal(workspace.claw, false)
+  assert.equal(workspace.enforced, false)
   assert.equal(workspace.ceiling.preset, 'full')
   assert.equal(workspace.ceiling.shell, 'allow')
   assert.equal(workspace.ceiling.files.read, 'all')
@@ -334,6 +339,72 @@ test('session-level skill deny is enforced even when the agent allows it', async
     agent: { session: { id: sessionId, header: { cwd: join(dir, 'DSclaw', 'test1') }, events: [] } },
   }
   assert.match(denyReason(dir, exec), /skill/)
+})
+
+test('workspace sessions stay official-only even with leftover suite policy', async () => {
+  const dir = await mkdtemp(join(tmpdir(), 'dsp-ws-'))
+  await writeFile(join(dir, 'settings.yaml'), 'permission:\n  defaultPreset: danger-full-access\n')
+  await mkdir(join(dir, 'workspace-agents'), { recursive: true })
+  await mkdir(join(dir, 'session-permissions'), { recursive: true })
+  await mkdir(join(dir, 'DSclaw', 'test1'), { recursive: true })
+  await writeFile(join(dir, 'workspace-agents', 'registry.json'), JSON.stringify({
+    version: 1,
+    agents: {
+      wa_1: {
+        agentId: 'wa_1',
+        title: 'test1',
+        preset: 'research',
+        dshPreset: 'wa-test1',
+        canonicalRoot: join(dir, 'DSclaw', 'test1'),
+        status: 'active',
+        policy: { preset: 'research', skills: { deny: ['pdf'] } },
+      },
+    },
+  }))
+  const sessionId = 'session-dddddddd-eeee-ffff-0000-111111111111'
+  await writeFile(join(dir, 'session-permissions', sessionId + '.json'), JSON.stringify({
+    version: 1,
+    sessionId,
+    source: 'session',
+    policy: { preset: 'research', skills: { deny: ['pdf'] } },
+  }))
+  const desktop = join(dir, 'Desktop', 'test2')
+  const winDesktop = 'C:\\Users\\qin\\Desktop\\test2'
+  assert.equal(isClawContext({ cwd: desktop }), false)
+  assert.equal(isClawContext({ cwd: winDesktop, preset: 'standard' }), false)
+  assert.equal(isClawContext({ cwd: desktop, preset: 'standard' }, {
+    agentId: 'wa_1',
+    dshPreset: 'wa-test1',
+    canonicalRoot: join(dir, 'DSclaw', 'test1'),
+  }), false)
+  assert.equal(isClawContext({ cwd: join(dir, 'DSclaw', 'test1') }), true)
+  assert.equal(isClawContext({ preset: 'wa-test1' }), true)
+  const layers = resolveLayersSync(dir, {
+    sessionId,
+    cwd: desktop,
+    preset: 'standard',
+  })
+  assert.equal(layers.claw, false)
+  assert.equal(layers.enforced, false)
+  assert.equal(layers.agent, null)
+  const exec = {
+    name: 'pwsh',
+    arguments: { command: 'Get-ChildItem' },
+    agent: { session: { id: sessionId, header: { cwd: desktop, agentPreset: 'standard' }, events: [] } },
+  }
+  assert.equal(denyReason(dir, exec), undefined)
+  assert.equal(denyReason(dir, { name: 'web_search', arguments: { query: 'dsh' }, agent: exec.agent }), undefined)
+  assert.equal(denyReason(dir, {
+    name: 'skill',
+    arguments: { name: 'pdf' },
+    agent: exec.agent,
+  }), undefined)
+  const clawExec = {
+    name: 'pwsh',
+    arguments: { command: 'Get-ChildItem' },
+    agent: { session: { id: 'session-eeeeeeee-ffff-0000-1111-222222222222', header: { cwd: join(dir, 'DSclaw', 'test1') }, events: [] } },
+  }
+  assert.match(denyReason(dir, clawExec), /bash/)
 })
 
 test('host named exports and routes', () => {

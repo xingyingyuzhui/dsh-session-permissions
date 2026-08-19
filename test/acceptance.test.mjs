@@ -114,6 +114,27 @@ test('workspace-only read denies ls Desktop at the policy layer, not via approva
   assert.match(renderPolicyPrompt(policy), /不走审批/)
 })
 
+test('workspace Desktop sessions do not go through the suite whitelist', async () => {
+  const home = await mkdtemp(join(tmpdir(), 'dsp-ws-acc-'))
+  const { b } = await twoAgents(home)
+  const desktop = join(home, 'Desktop', 'test2')
+  await mkdir(desktop, { recursive: true })
+  const sessionId = 'session-ffffffff-0000-1111-2222-333333333333'
+  const workspace = {
+    name: 'pwsh',
+    arguments: { command: 'Get-ChildItem' },
+    agent: { session: { id: sessionId, header: { cwd: desktop, agentPreset: 'standard' }, events: [] } },
+  }
+  assert.equal(resolveLayersSync(home, { sessionId, cwd: desktop, preset: 'standard' }).claw, false)
+  assert.equal(denyReason(home, workspace), undefined)
+  assert.equal(denyReason(home, { name: 'web_search', arguments: { query: 'dsh' }, agent: workspace.agent }), undefined)
+  assert.match(denyReason(home, {
+    name: 'pwsh',
+    arguments: { command: 'Get-ChildItem' },
+    agent: { session: { id: 's-b', header: { cwd: b }, events: [] } },
+  }), /bash/)
+})
+
 test('pinning a claw session cannot open danger-full-access', () => {
   const claw = composeLayers({
     officialName: 'danger-full-access',

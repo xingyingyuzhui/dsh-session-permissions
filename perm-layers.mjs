@@ -75,7 +75,7 @@ export function loadAgentHintSync(home, query) {
       break
     }
   }
-  if (!agent && preset) {
+  if (!agent && preset && (preset === 'wa-template' || String(preset).startsWith('wa-'))) {
     agent = rows.find((row) => row && row.status !== 'archived' && row.dshPreset === preset) || null
   }
   if (!agent) return null
@@ -89,24 +89,39 @@ export function loadAgentHintSync(home, query) {
   }
 }
 
-export function isClawContext(query, agent) {
-  if (agent) return true
+function isWaPreset(value) {
+  const preset = String(value || '')
+  return preset === 'wa-template' || preset.startsWith('wa-')
+}
+
+export function isClawContext(query, _agent) {
   if (query && query.claw === true) return true
   const cwd = query && query.cwd ? String(query.cwd) : ''
   if (looksLikeDsClaw(cwd)) return true
-  const preset = query && query.preset ? String(query.preset) : ''
-  return preset === 'wa-template' || preset.startsWith('wa-')
+  return isWaPreset(query && query.preset)
 }
 
 export function composeLayers({ officialName, agent, sessionRecord, claw }) {
   const official = officialPolicyFromPreset(officialName)
-  const isClaw = claw === true || !!(agent && (agent.agentId || agent.policy))
+  const isClaw = claw === true
+  if (!isClaw) {
+    const open = { ...maxPolicy(), enforced: false }
+    return {
+      officialName: officialName || 'danger-full-access',
+      official,
+      agent: null,
+      claw: false,
+      ceiling: open,
+      session: open,
+      effective: open,
+      inherited: true,
+      enforced: false,
+    }
+  }
   const rawAgent = agent && agent.policy ? normalizePolicy(agent.policy, agent.preset) : null
-  const agentPolicy = isClaw && rawAgent ? clampClawPolicy(rawAgent) : rawAgent
-  const hard = isClaw ? clawHardCap() : null
-  const ceiling = hard
-    ? { ...intersectPolicies(official, hard, agentPolicy || hard), preset: (agentPolicy || hard).preset }
-    : { ...maxPolicy(), enforced: true }
+  const agentPolicy = rawAgent ? clampClawPolicy(rawAgent) : null
+  const hard = clawHardCap()
+  const ceiling = { ...intersectPolicies(official, hard, agentPolicy || hard), preset: (agentPolicy || hard).preset }
   const inherited = !(sessionRecord && sessionRecord.source === 'session' && sessionRecord.policy)
   const session = inherited ? ceiling : intersectPolicies(normalizePolicy(sessionRecord.policy), ceiling)
   return {
@@ -119,7 +134,7 @@ export function composeLayers({ officialName, agent, sessionRecord, claw }) {
       dshPreset: agent.dshPreset,
       policy: agentPolicy,
     } : null,
-    claw: isClaw,
+    claw: true,
     ceiling,
     session,
     effective: session,
@@ -133,14 +148,15 @@ export function resolveLayersSync(home, query) {
   const officialName = readOfficialName(home, query && query.events)
   const agent = loadAgentHintSync(home, query || {})
   const record = sessionId ? loadPolicySync(home, sessionId) : emptyRecord(sessionId || 'session-unknown')
+  const claw = isClawContext(query, agent)
   return {
     record,
-    cwd: (query && query.cwd) || (agent && agent.canonicalRoot) || '',
+    cwd: (query && query.cwd) || (claw && agent && agent.canonicalRoot) || '',
     ...composeLayers({
       officialName,
       agent,
       sessionRecord: record,
-      claw: isClawContext(query, agent),
+      claw,
     }),
   }
 }
@@ -172,6 +188,7 @@ export function denyReason(home, exec) {
     preset: header.agentPreset,
     events: session.events,
   })
+  if (!layers.claw) return undefined
   if (String(exec.name || '').toLowerCase() === 'memory') return undefined
   if (String(exec.name || '').toLowerCase() === 'skill') {
     const denied = ((layers.effective && layers.effective.skills && layers.effective.skills.deny) || [])
