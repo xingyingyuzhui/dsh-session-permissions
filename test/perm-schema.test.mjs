@@ -178,6 +178,9 @@ test('editor view is read; paths stay inside the workspace unless files are all'
   assert.equal(allowExecution(developer, 'bash', { command: 'cat > ~/Desktop/note.md << EOF\nhi\nEOF' }, root), false)
   assert.equal(allowExecution(developer, 'bash', { command: 'echo hi > ./ok.md' }, root), true)
   assert.equal(allowExecution(maxPolicy(), 'str_replace_editor', { command: 'view', path: '/Users/qin/Desktop' }, root), true)
+  assert.equal(allowExecution(maxPolicy(), 'pwsh', { command: 'Get-ChildItem' }, root), true)
+  assert.equal(allowExecution(maxPolicy(), 'web_search', { query: 'dsh' }, root), true)
+  assert.equal(allowExecution(research, 'pwsh', { command: 'Get-ChildItem' }, root), false)
 })
 
 test('claw pins official sandbox down and asks only when policy says so', () => {
