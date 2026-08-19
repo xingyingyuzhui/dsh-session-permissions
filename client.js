@@ -413,6 +413,10 @@ function intersectMcpServers(acc, row, mcp) {
 
 function classifyTool(name, args) {
   const id = String(name || '').toLowerCase()
+  if (id === 'delegate_handoff') {
+    const action = String(asArgs(args).action || '').toLowerCase()
+    return action === 'accept' ? 'apply_patch' : 'other'
+  }
   if (OPENCLAW_FS[id]) return OPENCLAW_FS[id]
   if (id === 'str_replace_editor') {
     const cmd = commandOf(args)
@@ -421,6 +425,7 @@ function classifyTool(name, args) {
     return 'edit'
   }
   if (isMcpTool(name)) return 'mcp'
+  if (id === 'ask_user_question' || id === 'ask_user' || id === 'user_question') return 'ask_user'
   if (id.includes('subagent') || id.includes('delegate')) return 'other'
   return 'other'
 }
@@ -429,15 +434,23 @@ function allowTool(policy, name, args) {
   if (!policy) return false
   const id = String(name || '').toLowerCase()
   if (id === 'skill') return true
+  if (id === 'ask_user_question' || id === 'ask_user' || id === 'user_question') return true
   if (isMcpTool(name)) {
     const server = mcpServerOf(name)
     if (!server) return false
     return mcpServerAllowed(policy, server)
   }
+  if (id === 'delegate_handoff') {
+    const action = String(asArgs(args).action || '').toLowerCase()
+    if (action === 'accept') return isToolEnabled(policy, 'apply_patch') || isToolEnabled(policy, 'edit')
+    if (action === 'reject' || action === 'list' || action === '') return true
+    return false
+  }
   if (id.includes('subagent') || id.includes('delegate')) {
     return (policy.delegation && policy.delegation.maxDepth || 0) > 0
   }
   const cls = classifyTool(name, args)
+  if (cls === 'ask_user') return true
   if (cls === 'other') return false
   if (cls === 'edit' || cls === 'write' || cls === 'apply_patch') {
     if (cls === 'apply_patch') return isToolEnabled(policy, 'apply_patch') || isToolEnabled(policy, 'edit')

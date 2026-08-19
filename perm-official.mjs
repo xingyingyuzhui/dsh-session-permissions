@@ -1,5 +1,5 @@
 import { classifyTool, officialApprovalOf, officialSandboxOf, tighterSandbox } from './perm-schema.mjs'
-import { extractPaths, isPathInside, resolveTarget } from './perm-path.mjs'
+import { extractPaths, hatchActive, hatchOfficialSandbox, isPathInside, resolveTarget } from './perm-path.mjs'
 
 export function lastEventData(events, type) {
   if (!Array.isArray(events)) return undefined
@@ -13,7 +13,10 @@ export function lastEventData(events, type) {
 export function officialPin(layers, events) {
   if (!layers || !layers.claw) return { sandbox: null, approval: null }
   const currentSandbox = lastEventData(events, 'sandbox/mode')
-  const wantedSandbox = officialSandboxOf(layers.effective)
+  const cwd = layers.cwd || (layers.agent && layers.agent.canonicalRoot) || ''
+  const wantedSandbox = hatchActive(cwd)
+    ? hatchOfficialSandbox(officialSandboxOf(layers.effective))
+    : officialSandboxOf(layers.effective)
   const nextSandbox = tighterSandbox(wantedSandbox, currentSandbox && currentSandbox.mode)
   const sandbox = nextSandbox && nextSandbox !== (currentSandbox && currentSandbox.mode) ? nextSandbox : null
   const currentApproval = lastEventData(events, 'approval/policy')

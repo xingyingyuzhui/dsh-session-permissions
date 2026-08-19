@@ -135,6 +135,7 @@ export function resolveLayersSync(home, query) {
   const record = sessionId ? loadPolicySync(home, sessionId) : emptyRecord(sessionId || 'session-unknown')
   return {
     record,
+    cwd: (query && query.cwd) || (agent && agent.canonicalRoot) || '',
     ...composeLayers({
       officialName,
       agent,

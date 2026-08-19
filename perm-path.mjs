@@ -1,7 +1,49 @@
-import { realpathSync } from 'node:fs'
+import { existsSync, realpathSync } from 'node:fs'
 import { homedir } from 'node:os'
-import { isAbsolute, relative, resolve, sep, win32 } from 'node:path'
+import { basename, isAbsolute, join, relative, resolve, sep, win32 } from 'node:path'
 import { allowTool, asArgs, classifyTool, workspaceAccessOf } from './perm-schema.mjs'
+
+export const HATCH_FILES = ['BOOTSTRAP.md', 'IDENTITY.md', 'USER.md', 'SOUL.md']
+
+export function isAskUserTool(name) {
+  const id = String(name || '').toLowerCase()
+  return id === 'ask_user_question' || id === 'ask_user' || id === 'user_question'
+}
+
+export function hatchActive(cwd) {
+  if (!cwd || !looksLikeDsClaw(cwd)) return false
+  try { return existsSync(join(cwd, 'BOOTSTRAP.md')) } catch { return false }
+}
+
+export function extractPatchPaths(args) {
+  const text = String(asArgs(args).patch || asArgs(args).diff || '')
+  const found = []
+  const re = /^\*\*\* (?:Update|Add|Delete) File:\s+(.+)$/gm
+  let match
+  while ((match = re.exec(text))) {
+    const path = String(match[1] || '').trim()
+    if (path && found.indexOf(path) < 0) found.push(path)
+  }
+  return found
+}
+
+export function isHatchIdentityMutation(cwd, name, args) {
+  if (!hatchActive(cwd)) return false
+  const cls = classifyTool(name, args)
+  if (cls !== 'write' && cls !== 'edit' && cls !== 'apply_patch') return false
+  const paths = extractPaths(args).concat(extractPatchPaths(args))
+  if (paths.length === 0) return false
+  return paths.every((raw) => {
+    const target = resolveTarget(cwd, raw)
+    if (!target || !isPathInside(cwd, target)) return false
+    return HATCH_FILES.indexOf(basename(target)) >= 0
+  })
+}
+
+export function hatchOfficialSandbox(wanted) {
+  if (wanted === 'danger-full-access' || wanted === 'workspace-write') return wanted
+  return 'workspace-write'
+}
 
 // Same containment check as OpenClaw packages/fs-safe/src/path.ts `isPathInside`.
 export function isPathInside(root, target) {
@@ -118,10 +160,12 @@ export function pathAllowed(access, cwd, raw) {
 }
 
 export function allowExecution(policy, name, args, cwd) {
+  if (isAskUserTool(name)) return true
+  if (isHatchIdentityMutation(cwd, name, args)) return true
   if (!allowTool(policy, name, args)) return false
   const cls = classifyTool(name, args)
   if (cls === 'bash') return bashAllowed(policy, asArgs(args).command, cwd)
-  if (cls === 'deploy' || cls === 'mcp' || cls === 'other') return true
+  if (cls === 'deploy' || cls === 'mcp' || cls === 'other' || cls === 'ask_user') return true
   const access = workspaceAccessOf(policy, cls)
   if (access === 'none') return false
   if (cls !== 'read' && access === 'ro') return false
