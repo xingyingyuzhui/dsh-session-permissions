@@ -11,6 +11,7 @@ import {
   looksLikeDsClaw,
   looksLikeShellWrite,
   resolveTarget,
+  sameRoot,
 } from '../perm-path.mjs'
 
 test('resolveTarget expands USERPROFILE tokens onto homedir', () => {
@@ -54,4 +55,9 @@ test('isPathInside on win32 rejects other drives and Desktop', () => {
 test('looksLikeDsClaw is case-insensitive', () => {
   assert.equal(looksLikeDsClaw('C:\\Users\\qin\\.dsh\\dsclaw\\bot1'), true)
   assert.equal(looksLikeDsClaw('C:\\Users\\qin\\Desktop'), false)
+})
+
+test('sameRoot treats slash and case variants as one path', () => {
+  assert.equal(sameRoot('C:\\Users\\qin\\Projects\\app', 'C:/Users/qin/Projects/app'), true)
+  assert.equal(sameRoot('C:\\Users\\qin\\Projects\\app', 'C:\\Users\\qin\\Desktop'), false)
 })

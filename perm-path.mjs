@@ -211,7 +211,11 @@ export function resolveExisting(path) {
 export function sameRoot(a, b) {
   if (!a || !b) return false
   if (a === b) return true
-  return resolveExisting(a) === resolveExisting(b)
+  const left = resolveExisting(a)
+  const right = resolveExisting(b)
+  if (left === right) return true
+  return String(left).replace(/\\/g, '/').replace(/\/+$/, '').toLowerCase()
+    === String(right).replace(/\\/g, '/').replace(/\/+$/, '').toLowerCase()
 }
 
 export function looksLikeDsClaw(path) {

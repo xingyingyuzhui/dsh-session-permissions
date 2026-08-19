@@ -1,6 +1,6 @@
 {
   "name": "dsh-session-permissions",
-  "version": "0.2.26",
+  "version": "0.2.27",
   "description": "Layered session permissions for DeepSeek Harness. 有效权限 = 官方 ∩ Agent ∩ 本会话；Claw 会话钉官方沙箱（只紧不松）。",
   "keywords": ["dsh", "dsh-plugin", "deepseek-harness", "session", "permissions"],
   "license": "MIT",
